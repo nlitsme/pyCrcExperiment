@@ -1,5 +1,7 @@
 """
 Some utility functions for converting numbers to bits.
+
+Copyright (c) 2016 Willem Hengeveld <itsme@xs4all.nl
 """
 
 import unittest

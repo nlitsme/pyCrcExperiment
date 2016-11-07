@@ -1,4 +1,5 @@
 """
+Copyright (c) 2016 Willem Hengeveld <itsme@xs4all.nl
 
 a crc can be formalized as:   CRC(x) = MSG(x) * x^n ( mod POLY(x) )
 
