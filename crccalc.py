@@ -4,7 +4,7 @@ Calculate CRC's the standard way, using a table and/or bitshifting + XOR.
 Also demonstrates how to calculate a patch to arrive at a desired CRC value.
 And how to calculate a CRC in reverse.
 
-Copyright (c) 2016 Willem Hengeveld <itsme@xs4all.nl
+Copyright (c) 2016 Willem Hengeveld <itsme@xs4all.nl>
 """
 from __future__ import division, print_function
 import sys
