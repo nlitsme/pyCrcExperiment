@@ -145,7 +145,6 @@ class ForwardCrcTable:
         """ 
         crc1 = crc32(crc0, data)  <=>  crc0 = prevcrc32(crc1, data)
         """
-
         i = self.invtab[crc&0xff]
         return ((crc^self.crctab[i]) >> 8) | ((i^byte)<<24)
 
@@ -153,7 +152,6 @@ class ForwardCrcTable:
         """
         return 4 bytes data such that  crc4=crc32(crc0, data)
         """
-
         # calculate the lower three bytes of each of the crc's
         i3 = self.invtab[crc4&0xff]
         crc3 = (self.crctab[i3] ^ crc4) >> 8
@@ -176,6 +174,11 @@ class ForwardCrcTable:
         # crc4 == self.crctab[i3] ^ (crc3<<8)&0xFFFFFFFF
 
         return bytes([b0,b1,b2,b3])
+
+    def crc32patch2(self, crc0, crc4):
+        for i in range(4):
+            crc4 = self.prevcrc32(crc4, (crc0>>i*8)&0xFF)
+        return bytes([ (crc4>>24)&0xFF, (crc4>>16)&0xFF, (crc4>>8)&0xFF, crc4&0xFF ])
 
 
 class ForwardCrcNoTable:
@@ -210,13 +213,22 @@ class TestCrc(unittest.TestCase):
 
     def test_patch_rev(self):
         self.assertEqual(self.rev.crc32patch(0x12345678, 0x87654321), bytes.fromhex("4eaa6347"))
+        self.assertEqual(self.rev.crc32patch2(0x12345678, 0x87654321), bytes.fromhex("4eaa6347"))
         self.assertEqual(self.rev.crc32data(0x12345678, bytes.fromhex("4eaa6347")), 0x87654321)
+
         self.assertEqual(self.rev.crc32patch(0x00000000, 0xffffffff), bytes.fromhex("62f52692"))
+        self.assertEqual(self.rev.crc32patch2(0x00000000, 0xffffffff), bytes.fromhex("62f52692"))
         self.assertEqual(self.rev.crc32data(0x00000000, bytes.fromhex("62f52692")), 0xffffffff)
 
-    def test_patch2_rev(self):
-        self.assertEqual(self.rev.crc32patch2(0x12345678, 0x87654321), bytes.fromhex("4eaa6347"))
-        self.assertEqual(self.rev.crc32patch2(0x00000000, 0xffffffff), bytes.fromhex("62f52692"))
+        self.assertEqual(self.fwd.crc32patch(0x12345678, 0x87654321), bytes.fromhex("5c383e89"))
+        self.assertEqual(self.fwd.crc32patch2(0x12345678, 0x87654321), bytes.fromhex("5c383e89"))
+        self.assertEqual(self.fwd.crc32data(0x12345678, bytes.fromhex("5c383e89")), 0x87654321)
+
+        self.assertEqual(self.fwd.crc32patch(0x00000000, 0xffffffff), bytes.fromhex("46af6449"))
+        self.assertEqual(self.fwd.crc32patch2(0x00000000, 0xffffffff), bytes.fromhex("46af6449"))
+        self.assertEqual(self.fwd.crc32data(0x00000000, bytes.fromhex("46af6449")), 0xffffffff)
+
+
 
     def testinvfwd_rnd(self):
         for _ in range(16):
@@ -257,10 +269,6 @@ class TestCrc(unittest.TestCase):
             patch = self.rev.crc32patch(crc0, crc1)
             crc = self.rev.crc32data(crc0, patch)
             self.assertEqual(crc, crc1)
-
-    def test_patch_fwd(self):
-        self.assertEqual(self.fwd.crc32patch(0x12345678, 0x87654321), bytes.fromhex("5c383e89"))
-        self.assertEqual(self.fwd.crc32patch(0x00000000, 0xffffffff), bytes.fromhex("46af6449"))
 
     def test_patch_rnd_fwd(self):
         for _ in range(16):
@@ -308,6 +316,16 @@ def testcrcpatch():
         print("  .. ", rev.crc32patch2(reversevalue(crc0,32),              crc1).hex(), end="")
         print("  .. ", rev.crc32patch2(reversevalue(crc0,32), reversevalue(crc1,32)).hex(), end="")
         print("  .. ", rev.crc32patch2(crc0,                  reversevalue(crc1,32)).hex())
+
+    fwd = ForwardCrcTable(poly)
+    print("testing crcpatch")
+    for crc0, crc1 in ( (0x12345678, 0x87654321), (0x00000000,0x00000000), (0x00000000,0xFFFFFFFF), (0,1), (1,0)):
+        print("%08x -> %08x: %s" % (crc0, crc1, fwd.crc32patch(crc0, crc1).hex()), end="")
+        print("  .. ", fwd.crc32patch2(crc0,                               crc1).hex(), end="")
+        print("  .. ", fwd.crc32patch2(reversevalue(crc0,32),              crc1).hex(), end="")
+        print("  .. ", fwd.crc32patch2(reversevalue(crc0,32), reversevalue(crc1,32)).hex(), end="")
+        print("  .. ", fwd.crc32patch2(crc0,                  reversevalue(crc1,32)).hex())
+
 
 
 def main():
