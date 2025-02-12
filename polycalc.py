@@ -78,6 +78,7 @@ import random
 import binascii
 
 from bitutils import  *
+from crccalc2 import ReverseCrcTable, ForwardCrcTable
 
 import sys
 if sys.version_info < (3, 0):
@@ -445,7 +446,7 @@ class TestPolynomialRing(unittest.TestCase):
 
 ######## some 'traditional' crc calculations
 
-def crc32_revpoly(crc, revpoly, bit):
+def crc32_poly(crc, revpoly, bit):
     bit ^= crc>>31
     crc = (crc<<1)&0xFFFFFFFF
     if bit:
@@ -455,7 +456,7 @@ def crc32_revpoly(crc, revpoly, bit):
 def calccrc32(crc, txt):
     for byte in bytes(txt):
         for bit in genbits(byte, 8):
-            crc = crc32_revpoly(crc, 0x04C11DB7, bit)
+            crc = crc32_poly(crc, 0x04C11DB7, bit)
     return crc
 
 def msg2num(txt):
@@ -559,29 +560,53 @@ class TestCrc(unittest.TestCase):
         self.assertEqual(num2msg(0x8646C626), b'abcd')
         self.assertEqual(num2msg(0x8646C626a6), b'abcde')
     def test_crc_bit(self):
-        self.assertEqual(type(crc32_revpoly(0,0,0)), int)
+        self.assertEqual(type(crc32_poly(0,0,0)), int)
     def test_crc_bytes(self):
         self.assertEqual(type(calccrc32(0,b'abc')), int)
         self.assertEqual(calccrc32(0,b'abc'), 0x0b19a653)
         self.assertEqual(calccrc32(0xFFFFFFFF,b'abc'), 0xbc7ddb53)
-    def test_crc_bytes(self):
-        self.assertEqual(type(crc32_poly1(b'abc')), int)
-        self.assertEqual(type(crc32_poly2(0,b'abc')), int)
-        self.assertEqual(crc32_poly1(b'abc'), 0x0b19a653)
-        self.assertEqual(crc32_poly2(0,b'abc'), 0x0b19a653)
-        self.assertEqual(crc32_poly2(0xFFFFFFFF,b'abc'), 0xbc7ddb53)
 
-        self.assertEqual(crc32_binascii(0, b'abc'), 0xFFFFFFFF^reversevalue(calccrc32(0xFFFFFFFF, b'abc'),32))
-        self.assertEqual(crc32_binascii(0, b'abc'), 0xFFFFFFFF^reversevalue(crc32_poly2(0xFFFFFFFF, b'abc'),32))
+    def test_crccalc_bytes(self):
+        poly = 0x04C11DB7
+        data = b'abc'
+        rev = ReverseCrcTable(poly)
+        self.assertEqual(type(rev.crc32data(0,data)), int)
+        self.assertEqual(rev.crc32data(0,data), reversevalue(0x0b19a653,32))
+        self.assertEqual(rev.crc32data(0xFFFFFFFF,data), reversevalue(0xbc7ddb53,32))
+
+        from crcmod.predefined import mkPredefinedCrcFun
+        mcrc32 = mkPredefinedCrcFun('crc-32')
+        mcrcjam = mkPredefinedCrcFun('jamcrc')
+        self.assertEqual(mcrc32(data), reversevalue(0xbc7ddb53,32)^0xFFFFFFFF)
+        self.assertEqual(mcrcjam(data), reversevalue(0xbc7ddb53,32))
+
+        rdata = bytes(reversevalue(_, 8) for _ in data)
+        print(rdata.hex())
+        fwd = ForwardCrcTable(poly)
+        self.assertEqual(type(fwd.crc32data(0,rdata)), int)
+        self.assertEqual(fwd.crc32data(0,rdata), 0x0b19a653)
+        self.assertEqual(fwd.crc32data(0xFFFFFFFF,rdata), 0xbc7ddb53)
+
+    def test_crc_bytes(self):
+        data = b'abc'
+        self.assertEqual(type(crc32_poly1(data)), int)
+        self.assertEqual(type(crc32_poly2(0,data)), int)
+        self.assertEqual(crc32_poly1(data), 0x0b19a653)
+        self.assertEqual(crc32_poly2(0,data), 0x0b19a653)
+        self.assertEqual(crc32_poly2(0xFFFFFFFF,data), 0xbc7ddb53)
+
+        self.assertEqual(crc32_binascii(0, data), 0xFFFFFFFF^reversevalue(calccrc32(0xFFFFFFFF, data),32))
+        self.assertEqual(crc32_binascii(0, data), 0xFFFFFFFF^reversevalue(crc32_poly2(0xFFFFFFFF, data),32))
 
     def test_crc_ring(self):
-        self.assertEqual(type(crc32_ring1(b'abc')), int)
-        self.assertEqual(type(crc32_ring2(0,b'abc')), int)
-        self.assertEqual(crc32_ring1(b'abc'), 0x0b19a653)
-        self.assertEqual(crc32_ring2(0,b'abc'), 0x0b19a653)
-        self.assertEqual(crc32_ring2(0xFFFFFFFF,b'abc'), 0xbc7ddb53)
+        data = b'abc'
+        self.assertEqual(type(crc32_ring1(data)), int)
+        self.assertEqual(type(crc32_ring2(0,data)), int)
+        self.assertEqual(crc32_ring1(data), 0x0b19a653)
+        self.assertEqual(crc32_ring2(0,data), 0x0b19a653)
+        self.assertEqual(crc32_ring2(0xFFFFFFFF,data), 0xbc7ddb53)
 
-        self.assertEqual(crc32_binascii(0, b'abc'), 0xFFFFFFFF^reversevalue(crc32_ring2(0xFFFFFFFF, b'abc'),32))
+        self.assertEqual(crc32_binascii(0, data), 0xFFFFFFFF^reversevalue(crc32_ring2(0xFFFFFFFF, data),32))
 
     def test_crc32_rnd(self):
         for i in range(100):
@@ -623,20 +648,22 @@ def genprimes():
             yield a
 
 def test_crc32():
-    """ compare crc calc by several different algorithms """
+    """ compare crc calc by several different algorithms
+    known results: 0b19a653\|bc7ddb53\|ca6598d0\|cadbbe3d\|f4e659ac\|438224ac\|359a672f\|352441c2
+    """
     for data,seed in ((b'abc',0), (b'abc',0xFFFFFFFF), (b'abcdefg', 0), (b'abc', 0x99999999), (b'abc', 0x12345678)):
         print("%08x  %s" % (seed, binascii.b2a_hex(data)))
+
         racrc0 = crc32_binascii(reversevalue(seed,32), data)
         racrc1 = crc32_binascii(reversevalue(seed,32)^0xFFFFFFFF, data)
         print("ra  -> (0)%08x (-1)%08x  , xorred: (0)%08x (-1)%08x" % (racrc0, racrc1, racrc0^0xFFFFFFFF, racrc1^0xFFFFFFFF))
-
         bacrc0 = crc32_binascii(seed, data)
         bacrc1 = crc32_binascii(seed^0xFFFFFFFF, data)
         print("ba  -> (0)%08x (-1)%08x  , xorred: (0)%08x (-1)%08x" % (bacrc0, bacrc1, bacrc0^0xFFFFFFFF, bacrc1^0xFFFFFFFF))
+
         plcrc0 = crc32_poly2(seed, data)
         plcrc1 = crc32_poly2(seed^0xFFFFFFFF, data)
         print("pl  -> (0)%08x (-1)%08x  , xorred: (0)%08x (-1)%08x" % (plcrc0, plcrc1, plcrc0^0xFFFFFFFF, plcrc1^0xFFFFFFFF))
-
         orcrc0 = calccrc32(seed, data)
         orcrc1 = calccrc32(seed^0xFFFFFFFF, data)
         print("or  -> (0)%08x (-1)%08x  , xorred: (0)%08x (-1)%08x" % (orcrc0, orcrc1, orcrc0^0xFFFFFFFF, orcrc1^0xFFFFFFFF))
@@ -681,6 +708,7 @@ def testprimes():
 def testcrcpoly():
     """ test primality of several well known CRC polynomials """
     for a in (0x11021, 0x18005, 0x10589, 0x15D6DCB, 0x1864CFB, 0x6030B9C7, 0x104C11DB7):
+        print(f"testing 0x{a:x}")
         a = BinaryPolynomial(a)
         for p in genprimes():
             print(bool(a%p), end=" ")
@@ -736,7 +764,10 @@ def main():
     parser = argparse.ArgumentParser(description='Calculate CRCs using polynomials')
     parser.add_argument('--test', action='store_true', help='Run unittests')
     parser.add_argument('--test_gcd', action='store_true', help='Test GCD method success rate')
-    parser.add_argument('--verbose', '-v', action='count')
+    parser.add_argument('--check_primality', action='store_true')
+    parser.add_argument('--test_crc32', action='store_true')
+    parser.add_argument('--test_primes', action='store_true')
+    parser.add_argument('--verbose', '-v', action='count', default=0)
     args = parser.parse_args()
     if args.test:
         import sys
@@ -745,7 +776,12 @@ def main():
         unittest.main(verbosity=args.verbose)
     elif args.test_gcd:
         measure_gcd_success()
-
+    elif args.check_primality:
+        testcrcpoly()
+    elif args.test_crc32:
+        test_crc32()
+    elif args.test_primes:
+        testprimes()
 
 if __name__ == '__main__':
     main()
