@@ -78,7 +78,7 @@ import random
 import binascii
 
 from bitutils import  *
-from crccalc2 import ReverseCrcTable, ForwardCrcTable
+from crccalc import ReverseCrcTable, ForwardCrcTable
 
 import sys
 if sys.version_info < (3, 0):
@@ -185,7 +185,16 @@ class BinaryPolynomial(object):
     def __init__(self, bits):
         assert(type(bits) in (int,long))
         self.bits = bits
+
+    def scalarmult(self, n):
+        return BinaryPolynomial(self.bits*2)
+    def __rmul__(rhs, lhs):
+        if type(lhs)==int:
+            return rhs.scalarmult(lhs)
+        raise Exception("can't multiply")
     def __mul__(lhs, rhs):
+        if type(rhs)==int:
+            return lhs.scalarmult(rhs)
         res = 0
         mul = rhs.bits
         for bit in genbits(lhs.bits):
@@ -230,6 +239,8 @@ class BinaryPolynomial(object):
         return lhs + rhs
     def __str__(self):
         return bitstring(self.bits)
+    def __lt__(lhs, rhs):
+        return lhs.bits<rhs.bits
     def __eq__(lhs, rhs):
         return lhs.bits==rhs.bits
     def __ne__(lhs, rhs):
@@ -649,7 +660,7 @@ def genprimes():
 
 def test_crc32():
     """ compare crc calc by several different algorithms
-    known results: 0b19a653\|bc7ddb53\|ca6598d0\|cadbbe3d\|f4e659ac\|438224ac\|359a672f\|352441c2
+    known results: 0b19a653|bc7ddb53|ca6598d0|cadbbe3d|f4e659ac|438224ac|359a672f|352441c2
     """
     for data,seed in ((b'abc',0), (b'abc',0xFFFFFFFF), (b'abcdefg', 0), (b'abc', 0x99999999), (b'abc', 0x12345678)):
         print("%08x  %s" % (seed, binascii.b2a_hex(data)))
