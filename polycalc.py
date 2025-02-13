@@ -21,16 +21,16 @@ note that gcd(Q1(x),Q2(x)) is likely a small factor.
 
 --- add byte to crc:
 
-    MSG'(x) = MSG(x)*256+byte
+    MSG'(x) = MSG(x)*256+byte                              ;[1]
 
-MSG(x) * x^n = Q(x) * POLY(x) + CRC(x)
-MSG'(x) * x^n = Q'(x) * POLY(x) + CRC'(x)
+MSG(x) * x^n = Q(x) * POLY(x) + CRC(x)                     ;[2]
+MSG'(x) * x^n = Q'(x) * POLY(x) + CRC'(x)                  ;[3]
 
--> MSG(x)*x^n*256 +byte* x^n = Q'(x) * POLY(x) + CRC'(x)
--> Q(x) * POLY(x) * 256 + CRC(x)*256 + byte* x^n = Q'(x) * POLY(x) + CRC'(x)
--> CRC(x)*256 + byte* x^n = (Q'(x)-Q(x)*256) * POLY(x) + CRC'(x)
+-> MSG(x)*x^n*256 +byte* x^n = Q'(x) * POLY(x) + CRC'(x)           ;[4] = substitute [1] in [3]
+-> Q(x) * POLY(x) * 256 + CRC(x)*256 + byte* x^n = Q'(x) * POLY(x) + CRC'(x)   ;[5] = substitute [2] in [4]
+-> CRC(x)*256 + byte* x^n = (Q'(x)-Q(x)*256) * POLY(x) + CRC'(x)   ;[6] rearrange [5]
 
--> CRC'(x) = ( CRC(x)*256 + byte*x^n )  (mod POLY(x))
+-> CRC'(x) = ( CRC(x)*256 + byte*x^n )  (mod POLY(x))      ;[7] take [6] mod POLY(x)
 
 
 --- subtract a byte from a crc:
@@ -581,7 +581,7 @@ class TestCrc(unittest.TestCase):
         self.assertEqual(mcrcjam(data), reversevalue(0xbc7ddb53,32))
 
         rdata = bytes(reversevalue(_, 8) for _ in data)
-        print(rdata.hex())
+
         fwd = ForwardCrcTable(poly)
         self.assertEqual(type(fwd.crc32data(0,rdata)), int)
         self.assertEqual(fwd.crc32data(0,rdata), 0x0b19a653)
