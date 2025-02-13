@@ -1,4 +1,26 @@
+"""
+Calculate CRC's the standard way, using a table and/or bitshifting + XOR.
+
+Also demonstrates how to calculate a patch to arrive at a desired CRC value.
+And how to calculate a CRC in reverse.
+
+Copyright (c) 2016-2025 Willem Hengeveld <itsme@xs4all.nl>
+"""
+
 from bitutils import reversevalue, genbits, genrevbits
+"""
+polynomial: 0x04c11db7
+bit-reversed-polynomial: 0xedb88320
+
+the reverse polynomial table starts with:
+    00000000 77073096 ee0e612c 990951ba 076dc419, ...
+the forward table starts with:
+    00000000 04c11db7 09823b6e 0d4326d9 130476dc, ...
+
+the inverse crc is the crc with the data subtracted, instead of added.
+
+https://sar.informatik.hu-berlin.de/research/publications/SAR-PR-2006-05/SAR-PR-2006-05_.pdf
+"""
 # rewrote crccalc.py to use classes
 class ReverseCrcTable:
     def __init__(self, poly):
@@ -114,7 +136,6 @@ class ForwardCrcTable:
         self.poly = poly
         self.crctab = self.make_crc_tab(self.poly)
         self.invtab = self.make_inv_tab(self.crctab)
-
 
     @staticmethod
     def make_crc_tab(poly):
@@ -280,6 +301,7 @@ class TestCrc(unittest.TestCase):
 
     def test_fwd(self):
         self.assertEqual(self.ntfwd.crc32(0x3d8212e8, reversevalue(0x62, 8)), 0x49ed3e86)
+        self.assertEqual(self.fwd.crc32(0x3d8212e8, reversevalue(0x62, 8)), 0x49ed3e86)
         self.assertEqual(self.ntrev.crc32(reversevalue(0x3d8212e8,32), 0x62), reversevalue(0x49ed3e86, 32))
         self.assertEqual(self.rev.crc32(reversevalue(0x3d8212e8,32), 0x62), reversevalue(0x49ed3e86, 32))
 
